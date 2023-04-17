@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import scipy.stats as stats
 import pymysql
 from alive_progress import alive_bar
-
+import time
 
 P1On = True
 P2On = True
@@ -375,7 +375,15 @@ if __name__ == '__main__' :
     #stock_list = rd_j.apply(lambda x:'m1_'+(x[2:8]))
     #stock_list2 = rd_j.apply(lambda x:'d_'+(x[2:8]))
     
-    
+    T = True
+    StartTime = datetime.time(16, 30, 0, 0)
+    while(T):
+        print('.',end='')
+        NTime = datetime.datetime.now()
+        NTime = NTime.time()
+        T = NTime < StartTime
+        time.sleep(2)
+
     #### 全股票池 ####################
     slist = Strategy1.GetStockList()
     slist = pd.Series(slist)
@@ -391,7 +399,7 @@ if __name__ == '__main__' :
     CapitalData = pd.DataFrame([dm,read_Capital['总市值']]).T
     ########### 下载数据 ############################################
     #BTDate = ['2022-08-19','2022-08-22','2022-08-23','2022-08-24']
-    BTDate =['2022-09-30']   # 15-26号
+    BTDate =['2022-12-22']   # 15-26号
     #BTDate = ['2022-08-29']
     for DDate in BTDate:
         testNum = 5000

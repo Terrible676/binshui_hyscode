@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Sep  6 10:44:12 2022
+Created on Wed Jan  4 14:06:08 2023
 
 @author: MC
-""" 
-
+"""
 
 # -*- coding: utf-8 -*-
 """
-Created on Tue Aug 30 19:01:03 2022
+Created on Thu Dec 29 12:33:22 2022
 
 @author: MC
 """
+
+
 import func1
 import Strategy1
 import pandas as pd
@@ -25,6 +26,7 @@ import scipy.stats as stats
 import statsmodels.tsa.api as smt
 import pymysql
 import time
+import SweepBuy3_1234
 
 P1On = True
 P2On = False
@@ -182,7 +184,7 @@ def isSteadyRising(price,ExData,Capital,Ret_index = 0,n=30):
         Ratio1 = (HH -tLL)/max((HH -LL),0.1)   #防止出现0
         Ratio2 = (HH -ClosePrice[-1])/max((HH -LL),0.1)
         Ratio3 = (HH/LL -1) *100
-        GoldSpt = (max_index>min_index) and Ratio1<0.5 and Ratio2<0.382 and Ratio3> 1.5
+        GoldSpt = (max_index>min_index) and Ratio1<0.5 and Ratio2<0.5 and Ratio3> 1
         
         # ##### 强势冲高买入 ############
         # if(ret_rlt> 4 and ret_cur>1 and Supporting > 2 and Speed_Sup>1):
@@ -203,7 +205,7 @@ def isSteadyRising(price,ExData,Capital,Ret_index = 0,n=30):
         # isBoom1 = (avg_Vol*240*(max(-cur_ret,1)) / ExVol > 10)
         
         
-        if(GoldSpt and AboveRatio > 0.8 and avg_Amount>30 and TurnOver>0.5):
+        if(GoldSpt and AboveRatio > 0.5 and avg_Amount>5 and ret<9):
             P1 = True
             return P1
 
@@ -247,6 +249,33 @@ def isSteadyRising(price,ExData,Capital,Ret_index = 0,n=30):
     return P1
 ##########################################################
 
+def ReshapeData(StockDayData,InxDayData):
+    print('Reshaping Data...')
+    stock_list = StockDayData[:,0]
+    data_list = InxDayData['Time']
+    data_list = np.array(data_list.apply(lambda x:str(x)[0:10]))
+    #CloseMat = pd.DataFrame(index = stock_list)
+    #CloseMat.columns = data_list
+    #Mat = np.zeros(len(stock_list)*len(data_list))
+    #Mat = Mat.reshape(len(data_list),len(stock_list))
+    #Mat = pd.DataFrame(Mat,index = data_list)
+    # Mat.columns = stock_list
+    # Mat = pd.DataFrame(index = data_list)
+    CloseMat = pd.DataFrame(index = data_list)
+    for i in range(len(stock_list)):
+        try:
+            stock = stock_list[i]
+            tmp = StockDayData[i,1]
+            closeprice = tmp['ExClose']
+            stockdate = tmp['Time']
+            stockdate = np.array(stockdate.apply(lambda x:str(x)[0:10]))
+            closedata = pd.DataFrame(np.array(closeprice),index = stockdate)
+            closedata.columns = [stock]
+            CloseMat = CloseMat.join(closedata)
+        except:
+            continue
+    print('Data Reshaped.')
+    return  CloseMat
 
 
 
@@ -287,18 +316,10 @@ if __name__ == '__main__' :
     #stock_list = rd_j.apply(lambda x:'m1_'+(x[2:8]))
     #stock_list2 = rd_j.apply(lambda x:'d_'+(x[2:8]))
     
-    T = True
-    StartTime = datetime.time(16, 30, 0, 0)
-    while(T):
-        print('.',end='')
-        NTime = datetime.datetime.now()
-        NTime = NTime.time()
-        T = NTime < StartTime
-        time.sleep(2)
         
     stock_list = pd.Series(GetAllStockList())
     stock_list2 = stock_list.apply(lambda x:'d_'+(x[3:9]))
-
+    stock_list3 = stock_list.apply(lambda x:(x[3:9]))
     ### 用原始策略回测季总持仓
     ##### 读取市值数据  ########################################################
     read_Capital = pd.read_excel(r'F:/hyscode/CapitalData2.xlsx',dtype=object)
@@ -307,9 +328,33 @@ if __name__ == '__main__' :
     CapitalData = pd.DataFrame([dm,read_Capital['总市值']]).T
     ########### 下载数据 ############################################
     #BTDate = ['2022-08-19','2022-08-22','2022-08-23','2022-08-24']
-    BTDate =['2023-01-03']  
+    StockDayData = SweepBuy3_1234.GetStockDayData(stock_list3)
+    InxDayData = SweepBuy3_1234.GetInxDayData()
+    CloseMat= ReshapeData(StockDayData,InxDayData)
+    
+    ###### 计算3周均线 ########
+    CloseN = CloseMat.iloc[-16:-1]
+    CloseLastAll = CloseMat.iloc[-1]
+    MA15All = CloseN.mean()
+    ##########################
+    
+
+    T = True
+    StartTime = datetime.time(16, 30, 0, 0)
+    while(T):
+        print('.',end='')
+        NTime = datetime.datetime.now()
+        NTime = NTime.time()
+        T = NTime < StartTime
+        time.sleep(10)
+
+    td = datetime.datetime.now()
+    td = td.date()
+    #td = '2023-01-05'
+    BTDate = [str(td)]
+    # BTDate =['2022-12-29']  
     for DDate in BTDate:
-        testNum = 5000
+        testNum = 6000
         #### 获取前一交易日日期#############################
         dd = datetime.datetime.strptime(DDate, "%Y-%m-%d")
         wd = dd.weekday()
@@ -348,29 +393,32 @@ if __name__ == '__main__' :
                 StockName[i] = stock
                 PriceData = df[1]
                 ExData = DayData.loc[('d_'+stock[3:9])]
+                MA15 = MA15All[i]
+                CloseLast = CloseLastAll[i]
+                if(CloseLast<MA15):
+                    continue
                 try:
                     Num = np.argwhere(np.array(CapitalData['代码'])==stock[3:9])[0][0]
                     Capital = CapitalData.iloc[Num][1]
                 except:
                     Capital = 10000000000 # 没有数据则以100亿计算
-                for j in range(1,len(PriceData),8):
+                for j in range(150,210):
                     tmpPrice = PriceData[0:j]
                     tmp_index = ret_index[0:j]
                     # 1点半后的强势股买入
-                    if(j>120 and j<234 and P1On):
-                        P1 = isSteadyRising(tmpPrice,ExData,Capital,ret_index[j])
-                        if(P1):
-                            if(BuyTimes==0):
-                                FirstPoint[i] = int(j)
-                                FirstPrice[i] = PriceData['Open'][j+1]
-                            BuyPoint[i] = int(j)
-                            BuyPrice[i] = PriceData['Open'][j+1]
-                            BuyType[i] = 'P1'
-                            P1_Point += 1
-                            PnL1 += ((np.array(PriceData['Close'])[-1])/BuyPrice[i] -1)*100
-                            print(stock,' P1',j,' ',end='')
-                            TradeData = TradeData.append(pd.Series([stock,BuyPoint[i],BuyPrice[i]]),ignore_index=True)
-                            # break
+                    P1 = isSteadyRising(tmpPrice,ExData,Capital,ret_index[j])
+                    if(P1):
+                        if(BuyTimes==0):
+                            FirstPoint[i] = int(j)
+                            FirstPrice[i] = PriceData['Open'][210] ## 改成2.30的价格
+                        BuyPoint[i] = int(j)
+                        BuyPrice[i] = PriceData['Open'][210]
+                        BuyType[i] = 'P1'
+                        P1_Point += 1
+                        PnL1 += ((np.array(PriceData['Close'])[-1])/BuyPrice[i] -1)*100
+                        print(stock,' P1',j,' ',end='')
+                        TradeData = TradeData.append(pd.Series([stock,BuyPoint[i],BuyPrice[i]]),ignore_index=True)
+                        break
                     '''
                     if(j>180 and j<234 and P2On):
                         P2 = Diver2Index(tmpPrice,tmp_index,Capital)  # 与大盘背离
@@ -408,13 +456,13 @@ if __name__ == '__main__' :
         
         #############################################################
         
-        print(DDate,' 追涨策略:')
+        print(DDate,' 尾盘追2-2:')
         print('总股票数量：',len(df_list))
         print('买入股票数量:',Total_Buy)
         print('买入比例为：',round(Total_Buy/len(df_list)*100,3),'%')
         print("P1买入数量:",P1_Point,' 收益率：',round(PnL1/max(P1_Point,1),3),'%')
         print("P2买入数量:",P2_Point,' 收益率:',round(PnL2/max(P2_Point,1),3),'%')
-        print('当日收益率：',round(PnL,3),'%')
+        # print('当日收益率：',round(PnL,3),'%')
         # print("次日收益率：",round(NextRet.mean()-PnL,3),'%')
         
         TradeList = TradeData[0]
@@ -432,9 +480,10 @@ if __name__ == '__main__' :
         prt_output.index =prt_stock.apply(lambda x:x[3:9])
         prt_output['买入时间']=BPTime.values
         prt_output = prt_output[prt_output['买入价格']>0.1]
-        os.makedirs(r'F:\hyscode\Chase\output', exist_ok=True)
-        prt_output.to_excel('F:/hyscode/Chase/output/盘中追第一点%s output.xlsx' %DDate)
-        TradeData.to_excel('F:/hyscode/Chase/output/盘中追所有点%s output.xlsx' %DDate)
+        prt_output.columns = (['买入时间','两点半股价'])
+        os.makedirs(r'F:\hyscode\ClosingOrder\output', exist_ok=True)
+        prt_output.to_excel('F:/hyscode/ClosingOrder/output/尾盘追2-2_%s output.xlsx' %DDate)
+        # TradeData.to_excel('F:/hyscode/ClosingOrder/output/尾盘整买%s output.xlsx' %DDate)
         
         
 

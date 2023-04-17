@@ -26,18 +26,18 @@ if __name__ == '__main__' :
     stock_list = rd_j.apply(lambda x:'m1_'+(x[2:8]))
     stock_list2 = rd_j.apply(lambda x:'d_'+(x[2:8]))
     
-    DDate = '2022-09-07'
+    DDate = '2022-11-17'
     testNum =3000
     #df_list = Strategy1.GetDataList(stock_list,DDate,testNum)
     DayData = Strategy1.GetDayData(stock_list2,DDate,testNum)
     
-    BuyData = pd.read_excel('M0907.xlsx',dtype=object)
+    BuyData = pd.read_excel('M1117.xlsx',dtype=object)
     PnL = 0.
     j=0
     for i in range(len(BuyData)):
         stock = BuyData.iloc[i][0]
         try:
-            buyprice = float(BuyData.iloc[i][3])
+            buyprice = float(BuyData.iloc[i][2])
         except:
             continue
         if(buyprice>0):

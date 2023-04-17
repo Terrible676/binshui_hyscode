@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Sep 19 16:25:13 2022
-开盘低吸
+Created on Tue Dec  6 17:17:55 2022
+
 @author: MC
 """
+
 
 import Strategy1
 import pandas as pd
@@ -16,6 +17,7 @@ import matplotlib.pyplot as plt
 import scipy.stats as stats
 import pymysql
 from alive_progress import alive_bar
+import time
 
 
 P1On = True
@@ -298,7 +300,7 @@ def isMech(price,ExData,Capital,Ret_index = 0,n=30):
 def isPunch(price,ExData):   # 冲高回落去除
     try:
         HighPrice = np.array(price['High'])
-        ExClose = ExData['Close']
+        ExClose = ExData['ExClose']
         punch = (HighPrice.max() /ExClose -1)*100
         if( punch>2 ):
             return True
@@ -353,7 +355,7 @@ def isPumpDown(price,ExData,Capital,Ret_index = 0,n=30):
         ############################
         
         ##### 跌幅过大止损买入  ############
-        if(ret_rlt>-4 and ret_cur<-1 and DrawDown > 2 and Speed_Draw>1):
+        if(ret_rlt>-5 and ret_cur<-1 and DrawDown > 2 and Speed_Draw>1):
             P1 = True              # 第一类卖点
             return P1
         ######################
@@ -378,21 +380,22 @@ def isPumpDown(price,ExData,Capital,Ret_index = 0,n=30):
         
         ##########################################
         
-        if((BelowRatio > 0.8) and 
+        if((BelowRatio > 0.7) and 
            (len(ClosePrice)>5) and 
            (cur_ret < -1) and 
            (ret_rlt<-1) and
            DrawDown > 2 and
            Speed_Draw > 1 and
-           avg_Amount > 50 and   #平均成交量大于100万
-           TurnOver > 1 and 
+           avg_Amount < 1000 and   #平均成交量大于100万
+           TurnOver > 0.5 and
+           TurnOver < 2 and 
            isPump1
            ):
             P1 = True
             return P1
         ##########################################
         
-        isPump2 = (avg_Vol*240/ExVol < 10)
+        isPump2 = (avg_Vol*240/ExVol < 8)
         if(isPump2 and
            (cur_ret < -2) and
            avg_Amount > 100 and
@@ -401,7 +404,7 @@ def isPumpDown(price,ExData,Capital,Ret_index = 0,n=30):
             P1 = True
             return P1
 
-        
+
         if(BelowRatio > 0.95 and
            (len(ClosePrice)>20) and
            (cur_ret<-2) and 
@@ -409,6 +412,7 @@ def isPumpDown(price,ExData,Capital,Ret_index = 0,n=30):
            ):
             P1 = True
             return P1
+
     except:
         P1 = False
         return P1
@@ -443,6 +447,15 @@ if __name__ == '__main__' :
     #stock_list = rd_j.apply(lambda x:'m1_'+(x[2:8]))
     #stock_list2 = rd_j.apply(lambda x:'d_'+(x[2:8]))
     
+    T = True
+    StartTime = datetime.time(16, 30, 0, 0)
+    while(T):
+        print('.',end='')
+        NTime = datetime.datetime.now()
+        NTime = NTime.time()
+        T = NTime < StartTime
+        time.sleep(5)
+
     #### 全股票池 ###################################
     slist = Strategy1.GetStockList()
     slist = pd.Series(slist)
@@ -459,119 +472,123 @@ if __name__ == '__main__' :
     CapitalData = pd.DataFrame([dm,read_Capital['总市值']]).T
     ########### 下载数据 ############################################
     #BTDate = ['2022-08-19','2022-08-22','2022-08-23','2022-08-24']
-    BTDate =['2023-01-03']   # 15-26号
-    #BTDate = ['2022-08-29']
-    for DDate in BTDate:
-        testNum = 5000
-        #### 获取前一交易日日期#############################
-        dd = datetime.datetime.strptime(DDate, "%Y-%m-%d")
-        wd = dd.weekday()
-        if(wd==0):
-            preDate = dd -datetime.timedelta(days=3)
-        else:
-            preDate = dd -datetime.timedelta(days=4)                               # 前一天数据
-        preDate = str(preDate)[0:10]
-        ############################################
-        
-        ReadData = True                                        # 下载数据开关
-        if ReadData:
-            df_list = GetDataList(stock_list,DDate,testNum)
-            DayData = GetDayData(stock_list2,preDate,testNum)
-            index_data = GetIndexData(DDate,preDate)
-            #print(df_list)
-        
-        ## for bar backtest ############
-        BuyPoint = np.zeros(len(df_list),dtype = int)
-        SellPrice = np.zeros(len(df_list))
-        SellType = np.zeros(len(df_list),dtype = object)
-        StockName = np.zeros(len(df_list),dtype =object)
-        ret_index = GetIndexRet(index_data)       # 获取中证500涨跌数据
-        PnL = 0; PnL1 = 0; PnL2= 0
-        P1_Point = 0; P2_Point = 0
-        for i in range(len(df_list)):
+    td = datetime.datetime.now()
+    td = td.date()
+    DDate = str(td)
+    testNum = 5000
+    #### 获取前一交易日日期#############################
+    dd = datetime.datetime.strptime(DDate, "%Y-%m-%d")
+    wd = dd.weekday()
+    if(wd==0):
+        preDate = dd -datetime.timedelta(days=3)
+    else:
+        preDate = dd -datetime.timedelta(days=1)                               # 前一天数据
+    preDate = str(preDate)[0:10]
+    ############################################
+    
+    ReadData = True                                        # 下载数据开关
+    if ReadData:
+        df_list = GetDataList(stock_list,DDate,testNum)
+        DayData = GetDayData(stock_list2,preDate,testNum)
+        index_data = GetIndexData(DDate,preDate)
+        #print(df_list)
+    
+    ## for bar backtest ############
+    BuyPoint = np.zeros(len(df_list),dtype = int)
+    SellPrice = np.zeros(len(df_list))
+    SellType = np.zeros(len(df_list),dtype = object)
+    StockName = np.zeros(len(df_list),dtype =object)
+    ret_index = GetIndexRet(index_data)       # 获取中证500涨跌数据
+    PnL = 0; PnL1 = 0; PnL2= 0
+    P1_Point = 0; P2_Point = 0
+    for i in range(len(df_list)):
+        try:
+            df = df_list[i]
+            stock = df[0]
+            StockName[i] = stock
+            PriceData = df[1]
+            ExData = DayData.loc[('d_'+stock[3:9])]
             try:
-                df = df_list[i]
-                stock = df[0]
-                StockName[i] = stock
-                PriceData = df[1]
-                ExData = DayData.loc[('d_'+stock[3:9])]
-                try:
-                    Num = np.argwhere(np.array(CapitalData['代码'])==stock[3:9])[0][0]
-                    Capital = CapitalData.iloc[Num][1]
-                except:
-                    Capital = 10000000000 # 没有数据则以100亿计算
-                BP = GetBP(PriceData)
-                #if(len(BP)>1):  # 删掉前两个点
-                #    BP=BP[1:]
-                
-                for j in range(4,30):
-                    tmpPrice = PriceData[0:j+1]   #j+1
-                    tmp_index = ret_index[0:j+1]
-                    # 前三十分钟的止损判断
-                    Pch = isPunch(tmpPrice,ExData)  ## 冲高回落不买
-                    if Pch:
-                        break
-                    P1 = isPumpDown(tmpPrice,ExData,Capital,ret_index[j]) and isMech(tmpPrice,ExData,Capital,ret_index[j])
-                    #P1 = isMech(tmpPrice,ExData,Capital,ret_index[j]) 
-                    if(P1):
+                Num = np.argwhere(np.array(CapitalData['代码'])==stock[3:9])[0][0]
+                Capital = CapitalData.iloc[Num][1]
+            except:
+                Capital = 10000000000 # 没有数据则以100亿计算
+            # BP = GetBP(PriceData)
+            #if(len(BP)>1):  # 删掉前两个点
+            #    BP=BP[1:]
+            ## 低价股过滤 ####
+            if(ExData['ExClose']<4.5):
+                print('低价股',end='')
+                continue
+            for j in range(4,30):
+                tmpPrice = PriceData[0:j+1]   #j+1
+                tmp_index = ret_index[0:j+1]
+                # 前三十分钟的止损判断
+                Pch = isPunch(tmpPrice,ExData)  ## 冲高回落不买
+                if Pch:
+                    break
+                P1 = isPumpDown(tmpPrice,ExData,Capital,ret_index[j]) and isMech(tmpPrice,ExData,Capital,ret_index[j])
+                #P1 = isMech(tmpPrice,ExData,Capital,ret_index[j]) 
+                if(P1):
+                    # j += 5 # 延迟5分钟买入
+                    BuyPoint[i] = int(j)
+                    SellPrice[i] = PriceData['Open'][j+1]
+                    SellType[i] = 'P1'
+                    P1_Point += 1
+                    PnL1 += ((np.array(PriceData['Close'])[-1])/SellPrice[i] -1)*100
+                    print(stock,' P1',j,' ',end='')
+                    break
+                '''
+                if(len(BP)>1 and (j in BP)):
+                    P2 = isMech(tmpPrice,ExData,Capital,ret_index[j]) and VolFilter(tmpPrice,Capital)
+                    #P1 = True
+                    if(P2):
+                        # j += 5  # 5分钟后买入
                         BuyPoint[i] = int(j)
                         SellPrice[i] = PriceData['Open'][j+1]
-                        SellType[i] = 'P1'
-                        P1_Point += 1
-                        PnL1 += ((np.array(PriceData['Close'])[-1])/SellPrice[i] -1)*100
-                        print(stock,' P1',j,' ',end='')
+                        SellType[i] = 'P2'
+                        P2_Point += 1
+                        PnL2 += ((np.array(PriceData['Close'])[-1])/SellPrice[i] -1)*100
+                        print(stock,' P2',j,' ',end='')
                         break
-                    if(len(BP)>1 and (j in BP)):
-                        P2 = isMech(tmpPrice,ExData,Capital,ret_index[j]) and VolFilter(tmpPrice,Capital)
-                        #P1 = True
-                        if(P2):
-                            BuyPoint[i] = int(j)
-                            SellPrice[i] = PriceData['Open'][j+1]
-                            SellType[i] = 'P2'
-                            P2_Point += 1
-                            PnL2 += ((np.array(PriceData['Close'])[-1])/SellPrice[i] -1)*100
-                            print(stock,' P2',j,' ',end='')
-                            break
-                        
-                #if(BuyPoint[i]>0):
-                #    PnL += (SellPrice[i]/(np.array(PriceData['Close'])[-1]) -1)*100
-            except:
-                continue
-           # r= Diver2Index(tmpPrice,tmp_index) 
-            #if(r<0.1):
-             #   print(stock,' ',round(r,3))
-                
-        #print(BuyPoint)
-        PnL = PnL1+PnL2
-        Total_Sold = len(BuyPoint[BuyPoint>0])
-        PnL /= max(Total_Sold,1)
-        output = pd.DataFrame([BuyPoint,SellPrice,SellType]).T#,columns=['买入时间','买入价格'])
-        output.index = StockName
-        output.columns = (['买入时间','买入价格','买入类型'])
-        
-        print(DDate,' 早盘保守低吸')
-        print('总股票数量：',len(df_list))
-        print('买入股票数量:',Total_Sold)
-        print('平均收益率为：',round(PnL,3),'%')
-        print('买入比例为：',round(Total_Sold/len(df_list)*100,3),'%')
-        print("P1数量:",P1_Point,' 收益率：',round(PnL1/max(P1_Point,1),3),'%')
-        print("P2数量:",P2_Point,' 收益率:',round(PnL2/max(P2_Point,1),3),'%')
-        
-        
-        
-        BPTime = output['买入时间']
-        BPTime = BPTime.apply(lambda x:Strategy1.GetBPTime(int(x)))
-        prt_output = copy.deepcopy(output)
-        prt_stock =  pd.Series(prt_output.index)
-        prt_output.index =prt_stock.apply(lambda x:x[3:9])
-        prt_output['买入时间']=BPTime.values
-        prt_output = prt_output[prt_output['买入价格']>0.1]
-        os.makedirs(r'F:\hyscode\SweepBuy\output', exist_ok=True)
-        prt_output.to_excel('F:/hyscode/SweepBuy/output/保守低吸%s output.xlsx' %DDate)
+                '''  
+            #if(BuyPoint[i]>0):
+            #    PnL += (SellPrice[i]/(np.array(PriceData['Close'])[-1]) -1)*100
+        except:
+            continue
+       # r= Diver2Index(tmpPrice,tmp_index) 
+        #if(r<0.1):
+         #   print(stock,' ',round(r,3))
+            
+    #print(BuyPoint)
+    PnL = PnL1+PnL2
+    Total_Sold = len(BuyPoint[BuyPoint>0])
+    PnL /= max(Total_Sold,1)
+    output = pd.DataFrame([BuyPoint,SellPrice,SellType]).T#,columns=['买入时间','买入价格'])
+    output.index = StockName
+    output.columns = (['买入时间','买入价格','买入类型'])
+    
+    print(DDate,' 早盘保守低吸2')
+    print('总股票数量：',len(df_list))
+    print('买入股票数量:',Total_Sold)
+    print('平均收益率为：',round(PnL,3),'%')
+    print('买入比例为：',round(Total_Sold/len(df_list)*100,3),'%')
+    print("P1数量:",P1_Point,' 收益率：',round(PnL1/max(P1_Point,1),3),'%')
+    print("P2数量:",P2_Point,' 收益率:',round(PnL2/max(P2_Point,1),3),'%')
+    
+    
+    
+    BPTime = output['买入时间']
+    BPTime = BPTime.apply(lambda x:Strategy1.GetBPTime(int(x)))
+    prt_output = copy.deepcopy(output)
+    prt_stock =  pd.Series(prt_output.index)
+    prt_output.index =prt_stock.apply(lambda x:x[3:9])
+    prt_output['买入时间']=BPTime.values
+    prt_output = prt_output[prt_output['买入价格']>0.1]
+    os.makedirs(r'F:\hyscode\SweepBuy2\output', exist_ok=True)
+    prt_output.to_excel('F:/hyscode/SweepBuy2/output/保守假摔低吸2-%s output.xlsx' %DDate)
 
                 
         #### 计算相对收益率 ###################
-        
-
 
 
